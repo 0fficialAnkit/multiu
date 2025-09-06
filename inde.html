@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arogya Mitra: Health Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8f7f4;
+            color: #334155;
+            -webkit-overflow-scrolling: touch;
+        }
+        .text-gradient {
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            background-image: linear-gradient(to right, #0d9488, #2563eb);
+        }
+        .app-container {
+            display: none;
+            flex-direction: column;
+            height: 100vh;
+        }
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f4f8;
+        }
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem;
+            -webkit-overflow-scrolling: touch;
+            padding-bottom: 8rem; /* Increased padding for fixed input/nav area */
+        }
+        .chat-bubble {
+            max-width: 80%;
+            padding: 0.75rem 1rem;
+            border-radius: 1.25rem;
+            margin-bottom: 0.5rem;
+            line-height: 1.4;
+            transition: all 0.3s ease;
+        }
+        .user-bubble {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+            border-top-right-radius: 0.5rem;
+        }
+        .bot-bubble {
+            background-color: #ffffff;
+            align-self: flex-start;
+            border: 1px solid #e5e7eb;
+            border-top-left-radius: 0.5rem;
+        }
+        .loading-bubble {
+            background-color: #e5e7eb;
+            align-self: flex-start;
+            border: 1px solid #d1d5db;
+            color: #6b7280;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 250px;
+        }
+        .input-area {
+            position: fixed;
+            bottom: 3.5rem;
+            left: 0;
+            right: 0;
+            background-color: #f8f7f4;
+            border-top: 1px solid #e5e7eb;
+            padding: 0.5rem 0.5rem;
+            z-index: 40;
+        }
+        .chat-container::-webkit-scrollbar {
+            width: 8px;
+        }
+        .chat-container::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        .chat-container::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        .chat-container::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .source-link {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-decoration: underline;
+            margin-top: 0.25rem;
+            display: block;
+        }
+        .nav-button.active {
+            color: #0d9488;
+        }
+        .section-container {
+            display: none;
+        }
+        .section-container.active {
+            display: block;
+        }
+        .tts-button {
+            margin-top: 0.5rem;
+            padding: 0.25rem 0.5rem;
+            background-color: #e0f2fe;
+            color: #0c4a6e;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .tts-button:hover {
+            background-color: #bae6fd;
+        }
+        .mic-btn {
+            background-color: #2563eb;
+            color: white;
+        }
+        .mic-btn.listening {
+            background-color: #ef4444;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <!-- Login Screen -->
+    <div id="login-container" class="login-container">
+        <div class="bg-white p-8 rounded-2xl shadow-xl text-center max-w-sm w-full">
+            <div class="flex flex-col items-center">
+                <span class="text-6xl mb-4">🌱</span>
+                <h1 class="text-3xl font-bold text-slate-800">Welcome</h1>
+                <p class="text-sm text-slate-500 mt-2">Enter your details to log in.</p>
+            </div>
+            <form id="login-form" class="mt-8 space-y-4">
+                <input id="username-input" type="text" placeholder="Username" class="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" required>
+                <input id="password-input" type="password" placeholder="Password" class="w-full p-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500" required>
+                <button type="submit" class="w-full bg-teal-600 text-white font-semibold py-3 rounded-lg shadow-md hover:bg-teal-700 transition-colors">
+                    Login
+                </button>
+            </form>
+            <p id="error-message" class="text-sm text-red-500 mt-4 hidden"></p>
+        </div>
+    </div>
+    
+    <!-- Main App Screen (initially hidden) -->
+    <div id="app-container" class="app-container">
+        
+        <!-- Header -->
+        <header class="bg-white/80 backdrop-blur-lg sticky top-0 z-50 border-b border-slate-200 p-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">🌱</span>
+                <span class="text-xl font-bold text-slate-700">Arogya Mitra</span>
+            </div>
+            <div class="flex items-center space-x-2">
+                <select id="language-selector" class="bg-white text-sm font-medium border border-slate-300 rounded-lg py-1 px-2 focus:outline-none focus:ring-1 focus:ring-teal-500">
+                    <option value="en-US">English</option>
+                    <option value="hi-IN">Hindi</option>
+                    <option value="ta-IN">Tamil</option>
+                    <option value="kn-IN">Kannada</option>
+                </select>
+                <button id="user-info-btn" class="p-2 rounded-full hover:bg-slate-200 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-slate-600">
+                        <path fill-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area with switchable sections -->
+        <div class="main-content">
+            <!-- Chat Section -->
+            <div id="chat-section" class="section-container active">
+                <div class="flex justify-end p-2">
+                    <button id="clear-chat-btn" class="text-sm text-slate-500 hover:text-red-500 transition-colors">
+                        Clear Chat
+                    </button>
+                </div>
+                <div id="chat-window" class="chat-container">
+                    <!-- Chat bubbles will be appended here by JavaScript -->
+                </div>
+            </div>
+
+            <!-- About Section -->
+            <div id="about-section" class="section-container p-4">
+                <section class="py-8 bg-white px-4 rounded-2xl shadow-lg">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-slate-800">Bridging the Information Gap</h2>
+                        <p class="mt-2 text-sm text-slate-600">
+                            In rural India, a lack of access to credible and timely health information creates critical challenges.
+                        </p>
+                    </div>
+                    <div class="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-3">
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <h3 class="font-bold text-base text-slate-700">🩺 Accessibility</h3>
+                            <p class="mt-1 text-sm text-slate-600">Clinics can be hours away, making immediate consultation difficult.</p>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <h3 class="font-bold text-base text-slate-700">🗣️ Language Barriers</h3>
+                            <p class="mt-1 text-sm text-slate-600">Most health information is in English, creating a significant barrier.</p>
+                        </div>
+                        <div class="bg-slate-50 p-4 rounded-lg">
+                            <h3 class="font-bold text-base text-slate-700">🚨 Timely Alerts</h3>
+                            <p class="mt-1 text-sm text-slate-600">During an outbreak, rapid communication is key. We solve this.</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Impact Section -->
+            <div id="impact-section" class="section-container p-4">
+                <section class="py-8 bg-white px-4 rounded-2xl shadow-lg">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-slate-800">Projected Impact</h2>
+                        <p class="mt-2 text-sm text-slate-600">
+                            Arogya Mitra is poised to make a significant impact on community health awareness and outcomes.
+                        </p>
+                    </div>
+                    <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-700 mb-2">80% Query Accuracy</h3>
+                            <div class="chart-container">
+                                <canvas id="accuracyChart"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-slate-700 mb-2">20% Awareness Increase</h3>
+                            <div class="chart-container">
+                                <canvas id="awarenessChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Future Section -->
+            <div id="future-section" class="section-container p-4">
+                <section class="py-8 px-4 rounded-2xl shadow-lg">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold text-slate-800">Future Roadmap</h2>
+                        <p class="mt-2 text-sm text-slate-600">
+                            Our vision is to evolve Arogya Mitra into a comprehensive health platform.
+                        </p>
+                    </div>
+                    <div class="mt-4 grid gap-4 grid-cols-1 sm:grid-cols-3">
+                        <div class="bg-white p-4 rounded-lg shadow-md text-center">
+                            <div class="text-3xl mb-2">🎤</div>
+                            <h3 class="font-bold text-base text-slate-700">Voice Support</h3>
+                            <p class="mt-1 text-sm text-slate-600">Integrate speech-to-text to assist users with low literacy.</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-md text-center">
+                            <div class="text-3xl mb-2">🧑‍⚕️</div>
+                            <h3 class="font-bold text-base text-slate-700">Telemedicine</h3>
+                            <p class="mt-1 text-sm text-slate-600">Connect users with doctors for video consultations.</p>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-md text-center">
+                            <div class="text-3xl mb-2">🔗</div>
+                            <h3 class="font-bold text-base text-slate-700">Live API</h3>
+                            <p class="mt-1 text-sm text-slate-600">Transition to live government health databases for accuracy.</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Chat Input Area (Fixed) -->
+        <div class="input-area flex items-center gap-2">
+            <button id="mic-btn" class="p-3 rounded-full shadow-md transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path d="M8.25 4.5a.75.75 0 01.75-.75h2.25a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75V4.5z" />
+                    <path fill-rule="evenodd" d="M12 2.25a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75V3a.75.75 0 01.75-.75h3zm2.25.75A.75.75 0 0115 3v5.25a.75.75 0 01-.75.75h-2.25a.75.75 0 01-.75-.75V3a.75.75 0 01.75-.75h2.25zM12 18a6.75 6.75 0 005.656-10.045 4.5 4.5 0 01-5.836 2.062A4.5 4.5 0 0112 18zM12 18a6.75 6.75 0 01-5.656-10.045A4.5 4.5 0 008.25 9v3.75a4.5 4.5 0 004.5 4.5h.008a6.75 6.75 0 01-1.375.095V18zM6.75 14.25A4.5 4.5 0 002.25 18a.75.75 0 011.5 0 3 3 0 013-3V14.25z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <input type="text" id="user-input" placeholder="Type your health question..." class="flex-1 p-3 rounded-full border border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all">
+            <button id="send-btn" class="p-3 bg-teal-600 text-white rounded-full shadow-md hover:bg-teal-700 transition-colors duration-200">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation Bar -->
+        <nav class="bg-white border-t border-slate-200 fixed bottom-0 left-0 right-0 p-2 z-50">
+            <div class="flex justify-around items-center h-12">
+                <button class="nav-button flex flex-col items-center text-slate-400 hover:text-teal-600 active" data-target="chat-section">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.224 1.403.189 2.923.06 4.312-.324 1.423-.388 2.852-.572 4.247-.572 1.579 0 3.182.132 4.646.444.974.204 1.83.597 2.652 1.102a.75.75 0 00.835-.417 9.734 9.734 0 00.58-4.744 9.733 9.733 0 00-1.52-6.284v-.564a.75.75 0 00-.91-.758A38.746 38.746 0 0012 6.75a38.745 38.745 0 00-6.724-1.077.75.75 0 00-.91.758v.564a9.733 9.733 0 00-1.52 6.284z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span class="text-xs">Chat</span>
+                </button>
+                <button class="nav-button flex flex-col items-center text-slate-400 hover:text-teal-600" data-target="about-section">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
+                    </svg>
+                    <span class="text-xs">About</span>
+                </button>
+                <button class="nav-button flex flex-col items-center text-slate-400 hover:text-teal-600" data-target="impact-section">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.5a9 9 0 019-9.75A7.47 7.47 0 0115.75 4a6.692 6.692 0 00-.182 1.983 6.722 6.722 0 01-5.715 6.746H9.15l-1.391-.318A8.04 8.04 0 013 13.5z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 10.5V12a7.5 7.5 0 007.5 7.5h1.5a.75.75 0 00.75-.75V19.5" />
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span class="text-xs">Impact</span>
+                </button>
+                <button class="nav-button flex flex-col items-center text-slate-400 hover:text-teal-600" data-target="future-section">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.008v.008H3.75V6.75zm.008 5.25H3.75v.008h.008V12zm0 5.25H3.75v.008h.008v-.008z" />
+                    </svg>
+                    <span class="text-xs">Future</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+    
+    <script>
+        const apiKey = "AIzaSyAa2dwbipO8XyUxCsP_1OnhhCkDTkCXVH4";
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+        const ttsUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginContainer = document.getElementById('login-container');
+            const appContainer = document.getElementById('app-container');
+            const loginForm = document.getElementById('login-form');
+            const usernameInput = document.getElementById('username-input');
+            const passwordInput = document.getElementById('password-input');
+            const errorMessage = document.getElementById('error-message');
+            const userInfoBtn = document.getElementById('user-info-btn');
+            const chatWindow = document.getElementById('chat-window');
+            const userInput = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            const navButtons = document.querySelectorAll('.nav-button');
+            const sections = document.querySelectorAll('.section-container');
+            const clearChatBtn = document.getElementById('clear-chat-btn');
+            const micBtn = document.getElementById('mic-btn');
+            
+            const welcomeMessages = {
+                'en-US': "Hello! I am Arogya Mitra. How can I assist you with health information?",
+                'hi-IN': "नमस्ते! मैं आरोग्य मित्र हूँ। स्वास्थ्य संबंधी जानकारी के लिए मैं आपकी कैसे मदद कर सकता हूँ?",
+                'ta-IN': "வணக்கம்! நான் ஆரோக்கிய மித்ரா. சுகாதார தகவல்களுடன் நான் உங்களுக்கு எப்படி உதவ முடியும்?",
+                'kn-IN': "ನಮಸ್ಕಾರ! ನಾನು ಆರೋಗ್ಯ ಮಿತ್ರ. ಆರೋಗ್ಯ ಮಾಹಿತಿಯೊಂದಿಗೆ ನಾನು ನಿಮಗೆ ಹೇಗೆ ಸಹಾಯ ಮಾಡಬಹುದು?"
+            };
+            const voiceMap = {
+                'en-US': 'Kore',
+                'hi-IN': 'Achird',
+                'ta-IN': 'Despina',
+                'kn-IN': 'Sadachbia'
+            };
+
+            const languageSelector = document.getElementById('language-selector');
+            let currentLang = languageSelector.value;
+            let username = localStorage.getItem('username');
+            let chatHistory = JSON.parse(localStorage.getItem('chatHistory')) || [{
+                role: 'bot',
+                text: welcomeMessages[currentLang],
+            }];
+
+            let audioPlayer = new Audio();
+            let isListening = false;
+            let recognition = null;
+            if ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window) {
+                recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = currentLang;
+            }
+            
+            const showUserInfoModal = (() => {
+                let userInfoModal = null;
+                return (username) => {
+                    if (!userInfoModal) {
+                        userInfoModal = document.createElement('div');
+                        userInfoModal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center p-4 z-50 hidden';
+                        userInfoModal.innerHTML = `
+                            <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-xs text-center">
+                                <h3 class="font-bold text-lg mb-2">Welcome, ${username}</h3>
+                                <button id="logout-btn" class="w-full bg-red-600 text-white font-semibold py-2 rounded-lg hover:bg-red-700 transition-colors mt-4">
+                                    Logout
+                                </button>
+                                <button id="close-user-info-btn" class="bg-teal-600 text-white py-2 px-4 rounded-lg hover:bg-teal-700 mt-2">Close</button>
+                            </div>
+                        `;
+                        document.body.appendChild(userInfoModal);
+                        document.getElementById('close-user-info-btn').addEventListener('click', () => {
+                            userInfoModal.style.display = 'none';
+                        });
+                        document.getElementById('logout-btn').addEventListener('click', () => {
+                            localStorage.removeItem('username');
+                            localStorage.removeItem('chatHistory');
+                            window.location.reload();
+                        });
+                    }
+                    userInfoModal.querySelector('h3').innerText = `Welcome, ${username}`;
+                    userInfoModal.style.display = 'flex';
+                };
+            })();
+
+            function saveAppState() {
+                localStorage.setItem('username', username);
+                localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+            }
+
+            function renderChatHistory() {
+                chatWindow.innerHTML = '';
+                chatHistory.forEach(msg => {
+                    createBubble(msg.text, msg.role, msg.sources);
+                });
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+            }
+
+            function createBubble(text, role, sources = []) {
+                const bubble = document.createElement('div');
+                let bubbleClass = '';
+                if (role === 'user') {
+                    bubbleClass = 'user-bubble';
+                } else if (role === 'bot') {
+                    bubbleClass = 'bot-bubble';
+                } else if (role === 'loading') {
+                    bubbleClass = 'loading-bubble';
+                }
+                bubble.className = `chat-bubble ${bubbleClass}`;
+                bubble.innerText = text;
+
+                if (sources.length > 0) {
+                    sources.forEach(source => {
+                        const sourceLink = document.createElement('a');
+                        sourceLink.className = 'source-link';
+                        sourceLink.href = source.uri;
+                        sourceLink.target = '_blank';
+                        sourceLink.innerText = `Source: ${source.title}`;
+                        bubble.appendChild(sourceLink);
+                    });
+                }
+
+                if (role === 'bot' && text !== welcomeMessages[currentLang]) {
+                    const ttsBtn = document.createElement('button');
+                    ttsBtn.className = 'tts-button';
+                    ttsBtn.innerHTML = `Generating...`;
+                    ttsBtn.disabled = true;
+                    ttsBtn.onclick = () => handleTTSClick(ttsBtn);
+                    bubble.appendChild(ttsBtn);
+                    generateAndCacheTTS(text, ttsBtn);
+                }
+
+                chatWindow.appendChild(bubble);
+                chatWindow.scrollTop = chatWindow.scrollHeight;
+                return bubble;
+            }
+            
+            let currentPlayingButton = null;
+
+            async function handleTTSClick(button) {
+                const audioUrl = button.dataset.audioUrl;
+                if (!audioUrl) {
+                    return;
+                }
+
+                if (currentPlayingButton && currentPlayingButton !== button) {
+                    currentPlayingButton.innerHTML = `✨ Read Aloud`;
+                    audioPlayer.pause();
+                    audioPlayer.currentTime = 0;
+                }
+
+                if (audioPlayer.paused || audioPlayer.src !== audioUrl) {
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.play();
+                    button.innerHTML = `⏸️ Pause`;
+                    currentPlayingButton = button;
+                } else {
+                    audioPlayer.pause();
+                    button.innerHTML = `✨ Read Aloud`;
+                    currentPlayingButton = null;
+                }
+            }
+
+            async function generateAndCacheTTS(text, button) {
+                try {
+                    const payload = {
+                        contents: [{
+                            parts: [{ text: text }]
+                        }],
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: {
+                                voiceConfig: {
+                                    prebuiltVoiceConfig: { voiceName: voiceMap[currentLang] }
+                                }
+                            }
+                        },
+                        model: "gemini-2.5-flash-preview-tts"
+                    };
+
+                    const response = await fetch(ttsUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const result = await response.json();
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                        const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                        const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        
+                        button.dataset.audioUrl = audioUrl;
+                        button.innerHTML = `✨ Read Aloud`;
+                        button.disabled = false;
+                    } else {
+                        throw new Error('No audio data received from API');
+                    }
+                } catch (error) {
+                    console.error('TTS generation error:', error);
+                    button.innerHTML = 'Error';
+                    button.disabled = true;
+                }
+            }
+
+            audioPlayer.onended = () => {
+                if (currentPlayingButton) {
+                    currentPlayingButton.innerHTML = `✨ Read Aloud`;
+                    currentPlayingButton = null;
+                }
+            };
+            
+            function pcmToWav(pcmData, sampleRate) {
+                const wavHeader = new ArrayBuffer(44);
+                const view = new DataView(wavHeader);
+                const pcmBytes = pcmData.length * 2;
+                
+                writeString(view, 0, 'RIFF');
+                view.setUint32(4, 36 + pcmBytes, true);
+                writeString(view, 8, 'WAVE');
+                
+                writeString(view, 12, 'fmt ');
+                view.setUint32(16, 16, true);
+                view.setUint16(20, 1, true); 
+                view.setUint16(22, 1, true); 
+                view.setUint32(24, sampleRate, true);
+                view.setUint32(28, sampleRate * 2, true);
+                view.setUint16(32, 2, true);
+                view.setUint16(34, 16, true);
+                
+                writeString(view, 36, 'data');
+                view.setUint32(40, pcmBytes, true);
+
+                const dataBuffer = pcmData.buffer;
+                const audioBuffer = new Int16Array(dataBuffer);
+
+                const blob = new Blob([wavHeader, audioBuffer], { type: 'audio/wav' });
+                return blob;
+            }
+            
+            function writeString(view, offset, string) {
+                for (let i = 0; i < string.length; i++) {
+                    view.setUint8(offset + i, string.charCodeAt(i));
+                }
+            }
+            
+            function base64ToArrayBuffer(base64) {
+                const binaryString = window.atob(base64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                return bytes.buffer;
+            }
+
+            async function sendMessage(userText) {
+                if (!userText) return;
+
+                userInput.disabled = true;
+                sendBtn.disabled = true;
+                micBtn.disabled = true;
+
+                chatHistory.push({ role: 'user', text: userText });
+                renderChatHistory();
+
+                const loadingBubble = createBubble("...", "loading");
+
+                let retries = 0;
+                const maxRetries = 3;
+
+                try {
+                    while (retries < maxRetries) {
+                        try {
+                            const systemPrompt = `You are Arogya Mitra, an AI-powered public health chatbot for rural and semi-urban populations in India. Your purpose is to provide general, public health information in a friendly and helpful tone. The user is communicating in ${currentLang}. Please provide your response in ${currentLang}. When a user asks about diseases or symptoms, provide general information about symptoms, prevention, and basic care. For complex information, use bullet points or numbered lists to make the response proper and prettier. Always, and without exception, include a strong recommendation at the end of your response for the user to consult a local healthcare professional or doctor for a proper diagnosis and treatment. This is your most important instruction. Prioritize information from credible sources, especially government health organizations like WHO or the Ministry of Health.`;
+
+                            const payload = {
+                                contents: [{ parts: [{ text: userText }] }],
+                                tools: [{ "google_search": {} }],
+                                systemInstruction: {
+                                    parts: [{ text: systemPrompt }]
+                                }
+                            };
+                            
+                            const response = await fetch(apiUrl, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+
+                            const result = await response.json();
+                            const candidate = result.candidates?.[0];
+
+                            if (candidate && candidate.content?.parts?.[0]?.text) {
+                                const botText = candidate.content.parts[0].text;
+                                let sources = [];
+                                const groundingMetadata = candidate.groundingMetadata;
+                                if (groundingMetadata && groundingMetadata.groundingAttributions) {
+                                    sources = groundingMetadata.groundingAttributions
+                                        .map(attribution => ({
+                                            uri: attribution.web?.uri,
+                                            title: attribution.web?.title,
+                                        }))
+                                        .filter(source => source.uri && source.title);
+                                }
+
+                                chatHistory.push({ role: 'bot', text: botText, sources: sources });
+                                break;
+                            } else {
+                                throw new Error('No valid content found in the response.');
+                            }
+
+                        } catch (error) {
+                            console.error('Error sending message:', error);
+                            retries++;
+                            if (retries >= maxRetries) {
+                                chatHistory.push({ role: 'bot', text: "Sorry, I'm having trouble connecting right now. Please try again later." });
+                            } else {
+                                const delay = 1000 * Math.pow(2, retries - 1);
+                                await new Promise(res => setTimeout(res, delay));
+                            }
+                        }
+                    }
+                } finally {
+                    if (loadingBubble && loadingBubble.parentNode) {
+                        chatWindow.removeChild(loadingBubble);
+                    }
+                    renderChatHistory();
+                    userInput.disabled = false;
+                    sendBtn.disabled = false;
+                    micBtn.disabled = false;
+                    userInput.focus();
+                    saveAppState();
+                }
+            }
+            
+            function showSection(targetId) {
+                sections.forEach(section => {
+                    section.classList.remove('active');
+                });
+                const targetSection = document.getElementById(targetId);
+                if (targetSection) {
+                    targetSection.classList.add('active');
+                }
+                
+                navButtons.forEach(button => {
+                    button.classList.remove('active');
+                });
+                document.querySelector(`[data-target="${targetId}"]`).classList.add('active');
+
+                if (targetId === 'chat-section') {
+                    chatWindow.scrollTop = chatWindow.scrollHeight;
+                }
+            }
+
+            // Voice input functions
+            function startVoiceInput() {
+                if (!recognition) {
+                    alert("Speech recognition is not supported in this browser.");
+                    return;
+                }
+                if (isListening) {
+                    recognition.stop();
+                    return;
+                }
+                
+                micBtn.classList.add('mic-btn', 'listening');
+                micBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path d="M11.5 15.5a.75.75 0 01-1.5 0V12a.75.75 0 011.5 0v3.5zM12 18a6.75 6.75 0 005.656-10.045 4.5 4.5 0 01-5.836 2.062A4.5 4.5 0 0112 18zM12 18a6.75 6.75 0 01-5.656-10.045A4.5 4.5 0 008.25 9v3.75a4.5 4.5 0 004.5 4.5h.008a6.75 6.75 0 01-1.375.095V18zM15 9.75a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>`;
+                isListening = true;
+                
+                recognition.start();
+            }
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                // DO NOT update userInput.value here to prevent it from showing up in the text box.
+                sendMessage(transcript);
+            };
+
+            recognition.onend = () => {
+                isListening = false;
+                micBtn.classList.remove('mic-btn', 'listening');
+                micBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path d="M8.25 4.5a.75.75 0 01.75-.75h2.25a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75V4.5z" />
+                    <path fill-rule="evenodd" d="M12 2.25a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75V3a.75.75 0 01.75-.75h3zm2.25.75A.75.75 0 0115 3v5.25a.75.75 0 01-.75.75h-2.25a.75.75 0 01-.75-.75V3a.75.75 0 01.75-.75h2.25zM12 18a6.75 6.75 0 005.656-10.045 4.5 4.5 0 01-5.836 2.062A4.5 4.5 0 0112 18zM12 18a6.75 6.75 0 01-5.656-10.045A4.5 4.5 0 008.25 9v3.75a4.5 4.5 0 004.5 4.5h.008a6.75 6.75 0 01-1.375.095V18zM6.75 14.25A4.5 4.5 0 002.25 18a.75.75 0 011.5 0 3 3 0 013-3V14.25z" clip-rule="evenodd" />
+                </svg>`;
+            };
+            
+            recognition.onerror = (event) => {
+                console.error('Speech recognition error', event.error);
+                micBtn.classList.remove('mic-btn', 'listening');
+                micBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6">
+                    <path d="M8.25 4.5a.75.75 0 01.75-.75h2.25a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75V4.5z" />
+                    <path fill-rule="evenodd" d="M12 2.25a.75.75 0 01.75.75v5.25a.75.75 0 01-.75.75H9a.75.75 0 01-.75-.75V3a.75.75 0 01.75-.75h3zm2.25.75A.75.75 0 0115 3v5.25a.75.75 0 01-.75.75h-2.25a.75.75 0 01-.75-.75V3a.75.75 0 01.75-.75h2.25zM12 18a6.75 6.75 0 005.656-10.045 4.5 4.5 0 01-5.836 2.062A4.5 4.5 0 0112 18zM12 18a6.75 6.75 0 01-5.656-10.045A4.5 4.5 0 008.25 9v3.75a4.5 4.5 0 004.5 4.5h.008a6.75 6.75 0 01-1.375.095V18zM6.75 14.25A4.5 4.5 0 002.25 18a.75.75 0 011.5 0 3 3 0 013-3V14.25z" clip-rule="evenodd" />
+                </svg>`;
+            };
+
+            loginForm.addEventListener('submit', (event) => {
+                event.preventDefault();
+                const inputUsername = usernameInput.value;
+                const inputPassword = passwordInput.value;
+                
+                if (inputUsername && inputPassword) {
+                    username = inputUsername;
+                    localStorage.setItem('username', username);
+                    loginContainer.style.display = 'none';
+                    appContainer.style.display = 'flex';
+                    showUserInfoModal(username);
+                } else {
+                    errorMessage.innerText = "Please enter both username and password.";
+                    errorMessage.style.display = 'block';
+                }
+            });
+
+            navButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    showSection(button.dataset.target);
+                });
+            });
+
+            sendBtn.addEventListener('click', () => {
+                const userText = userInput.value.trim();
+                sendMessage(userText);
+            });
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const userText = userInput.value.trim();
+                    sendMessage(userText);
+                }
+            });
+
+            if(userInfoBtn) {
+                userInfoBtn.addEventListener('click', () => {
+                    showUserInfoModal(username);
+                });
+            }
+
+            if(micBtn) {
+                micBtn.addEventListener('click', startVoiceInput);
+            }
+
+            clearChatBtn.addEventListener('click', () => {
+                chatHistory = [{
+                    role: 'bot',
+                    text: welcomeMessages[currentLang],
+                }];
+                saveAppState();
+                renderChatHistory();
+            });
+
+            languageSelector.addEventListener('change', (e) => {
+                currentLang = e.target.value;
+                if (recognition) {
+                    recognition.lang = currentLang;
+                }
+                
+                // Update welcome message and re-render history
+                const newWelcomeMessage = welcomeMessages[currentLang];
+                chatHistory = [{
+                    role: 'bot',
+                    text: newWelcomeMessage,
+                }];
+                saveAppState();
+                renderChatHistory();
+            });
+
+            const chartCtx = document.getElementById('accuracyChart').getContext('2d');
+            new Chart(chartCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Accurate Responses', 'Inaccurate/Failed'],
+                    datasets: [{
+                        data: [80, 20],
+                        backgroundColor: ['#0d9488', '#f1f5f9'],
+                        borderColor: ['#ffffff'],
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: { callbacks: { label: (context) => context.label + ': ' + context.raw + '%' } }
+                    }
+                }
+            });
+
+            const awarenessCtx = document.getElementById('awarenessChart').getContext('2d');
+            new Chart(awarenessCtx, {
+                type: 'bar',
+                data: {
+                    labels: ['Before Arogya Mitra', 'After Arogya Mitra'],
+                    datasets: [{
+                        label: 'Community Health Awareness Index',
+                        data: [55, 66],
+                        backgroundColor: ['#a5f3fc', '#0e7490'],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, max: 100 } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.raw}` } }
+                    }
+                }
+            });
+
+            // Initial setup to check if user is already logged in
+            if (username) {
+                loginContainer.style.display = 'none';
+                appContainer.style.display = 'flex';
+                showUserInfoModal(username);
+                renderChatHistory();
+                showSection('chat-section');
+            } else {
+                loginContainer.style.display = 'flex';
+                appContainer.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>
